@@ -719,6 +719,7 @@ where
         type_id: u32,
         offsets_type: OffsetType,
     ) -> Result<Encoding> {
+        // println!("Inside encode_single_sequence() in tokenizers/src/tokenizer/mod.rs");
         let encode = |is_pre_tokenized, subseq_idx, subseq| -> Result<Encoding> {
             let normalized = self
                 .added_vocabulary
@@ -877,6 +878,7 @@ where
         word_idx: Option<u32>,
         offsets_type: OffsetType,
     ) -> Result<Encoding> {
+        // println!("Inside do_tokenize() in tokenizers/src/tokenizer/mod.rs");
         let mut pretokenized: PreTokenizedString = pretokenized.into();
         pretokenized.tokenize(|normalized| self.model.tokenize(normalized.get()))?;
         pretokenized.into_encoding(word_idx, type_id, offsets_type)

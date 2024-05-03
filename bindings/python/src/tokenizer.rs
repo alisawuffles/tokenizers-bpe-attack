@@ -953,6 +953,7 @@ impl PyTokenizer {
         is_pretokenized: bool,
         add_special_tokens: bool,
     ) -> PyResult<PyEncoding> {
+        // println!("Inside encode() in bindings/python/src/tokenizer.rs");
         let sequence: tk::InputSequence = if is_pretokenized {
             sequence.extract::<PreTokenizedInputSequence>()?.into()
         } else {
@@ -1213,6 +1214,7 @@ impl PyTokenizer {
     #[pyo3(signature = (files, trainer = None))]
     #[pyo3(text_signature = "(self, files, trainer = None)")]
     fn train(&mut self, files: Vec<String>, trainer: Option<&mut PyTrainer>) -> PyResult<()> {
+        // println!("Inside train() in bindings/python/src/tokenizer.rs");
         let mut trainer =
             trainer.map_or_else(|| self.tokenizer.get_model().get_trainer(), |t| t.clone());
         Python::with_gil(|py| {

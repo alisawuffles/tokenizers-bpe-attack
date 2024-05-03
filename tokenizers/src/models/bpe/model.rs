@@ -21,6 +21,7 @@ struct Config {
     files: Option<(String, String)>,
     vocab: Vocab,
     merges: Merges,
+    pair_counts: Vec<HashMap<(u32, u32), i32>>,
     cache_capacity: usize,
     dropout: Option<f32>,
     unk_token: Option<String>,
@@ -42,6 +43,7 @@ impl Default for BpeBuilder {
                 files: None,
                 vocab: HashMap::new(),
                 merges: vec![],
+                pair_counts: Vec::new(),
                 cache_capacity: DEFAULT_CACHE_CAPACITY,
                 dropout: None,
                 unk_token: None,
@@ -183,6 +185,7 @@ impl BpeBuilder {
             vocab,
             vocab_r,
             merges: merge_map,
+            pair_counts: self.config.pair_counts,
             cache,
             dropout: self.config.dropout,
             unk_token: self.config.unk_token,
@@ -203,6 +206,8 @@ pub struct BPE {
     pub(crate) vocab_r: VocabR,
     /// Contains the mapping between Pairs and their (rank, new_id).
     pub(crate) merges: MergeMap,
+    // Contains the count of every pair
+    pub(crate) pair_counts: Vec<HashMap<(u32, u32), i32>>,
     /// Contains the cache for optimizing the encoding step.
     cache: Option<Cache<String, Word>>,
     /// Dropout probability for merges. 0 = no dropout is the default. At 1.0, tokenization will
@@ -251,6 +256,7 @@ impl Clone for BPE {
             vocab: self.vocab.clone(),
             vocab_r: self.vocab_r.clone(),
             merges: self.merges.clone(),
+            pair_counts: self.pair_counts.clone(),
             cache: fresh_cache,
             dropout: self.dropout,
             unk_token: self.unk_token.clone(),
@@ -354,6 +360,7 @@ impl BPE {
     }
 
     fn merge_word(&self, w: &str) -> Result<Word> {
+        // println!("Calling merge_word() in tokenizers/src/models/bpe/model.rs");
         let mut indices = w.char_indices().map(|(idx, _)| idx).peekable();
         let mut word = Word::with_capacity(w.len());
         let mut unk: Option<(u32, usize)> = None;
@@ -434,7 +441,6 @@ impl BPE {
         if let Some((unk_id, unk_len)) = unk {
             word.add(unk_id, unk_len);
         }
-
         word.merge_all(&self.merges, self.dropout);
 
         Ok(word)
@@ -447,10 +453,24 @@ impl BPE {
     }
 
     fn tokenize_with_cache(&self, sequence: &str) -> Result<Vec<Token>> {
+        // println!("Inside tokenize_with_cache() in tokenizers/src/models/bpe/models.rs");
         if let Some(ref hit) = self.cache.as_ref().and_then(|c| c.get(sequence)) {
             Ok(self.word_to_tokens(hit).collect())
         } else {
             let word = self.merge_word(sequence)?;
+            // print word.merges
+            // println!("word.merges: {:?}", word.merges);
+            
+            // append word.merges as a list of numbers to existing file
+            // let mut file = OpenOptions::new()
+            //     .write(true)
+            //     .append(true)
+            //     .open("/gscratch/xlab/alisaliu/hack-tokenizers/used_merges.txt")
+            //     .unwrap();
+            // for merge_rank in word.merges.iter() {
+            //     file.write_all(format!("{}\n", merge_rank).as_bytes()).unwrap();
+            // }
+
             let ret = self.word_to_tokens(&word).collect();
             if let Some(ref cache) = self.cache {
                 cache.set(sequence.to_owned(), word);
@@ -472,6 +492,7 @@ impl Model for BPE {
     }
 
     fn tokenize(&self, sequence: &str) -> Result<Vec<Token>> {
+        // println!("Inside tokenize() in tokenizers/src/models/bpe/model.rs");
         if sequence.is_empty() {
             return Ok(vec![]);
         }
@@ -493,12 +514,12 @@ impl Model for BPE {
     }
 
     fn save(&self, folder: &Path, name: Option<&str>) -> Result<Vec<PathBuf>> {
+        // Write vocab.json
         let vocab_file_name = match name {
             Some(name) => format!("{}-vocab.json", name),
             None => "vocab.json".to_string(),
         };
 
-        // Write vocab.json
         let vocab_path: PathBuf = [folder, Path::new(vocab_file_name.as_str())]
             .iter()
             .collect();
@@ -533,7 +554,35 @@ impl Model for BPE {
                 .collect::<Vec<_>>()[..],
         )?;
 
-        Ok(vec![vocab_path, merges_path])
+        // If self.pair_counts is non-empty, write pair_counts.json
+        if self.pair_counts.is_empty() {
+            return Ok(vec![vocab_path, merges_path]);
+        }
+        
+        let pair_counts_file_name = match name {
+            Some(name) => format!("{}-all_pair_counts.json", name),
+            None => "all_pair_counts.json".to_string(),
+        };
+        let pair_counts_path: PathBuf = [folder, Path::new(pair_counts_file_name.as_str())]
+            .iter()
+            .collect();
+        let mut pair_counts_file = File::create(&pair_counts_path)?;
+        // Transform pair_counts from HashMap<(u32, u32), i32> into HashMap<String, i32>
+        let mut all_pair_counts: Vec<HashMap<String, i32>> = Vec::new();
+        // Loop over self.pair_counts
+
+        for pc in self.pair_counts.iter() {
+            let mut pair_counts: HashMap<String, i32> = HashMap::new();
+            for (pair, count) in pc.iter() {
+                let pair_str = format!("{} {}", self.id_to_token(pair.0).unwrap(), self.id_to_token(pair.1).unwrap());
+                pair_counts.insert(pair_str, *count);
+            }
+            all_pair_counts.push(pair_counts);
+        }
+        let serialized = serde_json::to_string(&all_pair_counts)?;
+        pair_counts_file.write_all(serialized.as_bytes())?;
+
+        Ok(vec![vocab_path, merges_path, pair_counts_path])
     }
 
     fn get_trainer(&self) -> BpeTrainer {

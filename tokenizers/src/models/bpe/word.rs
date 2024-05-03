@@ -1,5 +1,6 @@
 use super::Pair;
 use rand::{thread_rng, Rng};
+use regex_syntax::ast::print;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 
@@ -55,6 +56,7 @@ impl Symbol {
 #[derive(Clone, Default)]
 pub(super) struct Word {
     symbols: Vec<Symbol>,
+    // pub merges: Vec<i32>
 }
 impl std::fmt::Debug for Word {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -75,12 +77,16 @@ impl std::fmt::Debug for Word {
 
 impl Word {
     pub(super) fn new() -> Self {
-        Word { symbols: vec![] }
+        Word { 
+            symbols: vec![],
+            // merges: vec![]
+        }
     }
 
     pub(super) fn with_capacity(capacity: usize) -> Self {
         Self {
             symbols: Vec::with_capacity(capacity),
+            // merges: Vec::with_capacity(capacity)
         }
     }
 
@@ -159,6 +165,8 @@ impl Word {
     }
 
     pub(super) fn merge_all(&mut self, merges: &HashMap<Pair, (u32, u32)>, dropout: Option<f32>) {
+        // This is the function where we actually execute the merges for the given word.
+        // println!("Inside merge_all() in tokenizers/src/models/bpe/word.rs");
         let mut queue = BinaryHeap::with_capacity(self.symbols.len());
         let mut skip = Vec::with_capacity(queue.len());
 
@@ -176,6 +184,11 @@ impl Word {
                 }),
         );
 
+        // println!("Initial elements of queue:");
+        // for elem in queue.iter() {
+        //     println!("{}", elem.rank);
+        // }
+
         while let Some(top) = queue.pop() {
             if dropout
                 .map(|d| thread_rng().gen::<f32>() < d)
@@ -183,6 +196,9 @@ impl Word {
             {
                 skip.push(top);
             } else {
+                // println!("--- Time step {} ---", counter);
+                // println!("Pop merge: {}", top.rank);
+
                 // Re-insert the skipped elements
                 queue.extend(skip.drain(..));
 
@@ -206,6 +222,8 @@ impl Word {
                     continue;
                 }
 
+                // println!("Apply the merge!");
+
                 // Otherwise, let's merge
                 self.symbols[top.pos].merge_with(&right, top.new_id);
                 // Tag the right part as removed
@@ -228,6 +246,7 @@ impl Word {
                             rank: *rank,
                             new_id: *new_id,
                         });
+                        println!("Merge added to queue: {}", rank);
                     }
                 }
 
@@ -242,6 +261,7 @@ impl Word {
                             rank: *rank,
                             new_id: *new_id,
                         });
+                        println!("Merge added to queue: {}", rank);
                     }
                 }
             }
