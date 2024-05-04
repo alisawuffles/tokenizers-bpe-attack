@@ -514,6 +514,7 @@ impl BpeTrainer {
         self.finalize_progress(&progress, words.len());
 
         // Make a copy of pair_counts called initial_pair_counts
+        let mut old_pair_counts: HashMap<Pair, i32> = pair_counts.clone();
         let mut all_pair_counts: Vec<HashMap<Pair, i32>> = Vec::new();
         all_pair_counts.push(pair_counts.clone());
 
@@ -536,6 +537,9 @@ impl BpeTrainer {
         let mut merges: Vec<(Pair, u32)> = vec![];
         let max_merges = 1000;
         for (left, right) in merge_order {
+            // print the merge we are applying
+            println!("Applying merge: {} + {}", left, right);
+
             if all_pair_counts.len() == max_merges {
                 break;
             }
@@ -649,18 +653,23 @@ impl BpeTrainer {
                 }
             });
 
-            // Remove any unchanged merge frequencies before pushing to all_pair_counts
-            let mut pair_counts_tmp = pair_counts.clone();
-            let last: &mut HashMap<(u32, u32), i32> = all_pair_counts.last_mut().unwrap();
-            for (k, v) in last {
-                if pair_counts_tmp.contains_key(k) {
-                    if pair_counts_tmp[k] == *v {
-                        // delete k from last, which is a reference
-                        pair_counts_tmp.remove(k);
-                    }
+            // Detect differences from old_pair_counts and add them to all_pair_counts
+            let mut pair_counts_diff: HashMap<Pair, i32> = HashMap::new();
+            pair_counts.remove(&top.pair);  // remove current merge from pair_counts (this isn't done automatically)
+            
+            let keys: HashSet<&Pair> = pair_counts.keys().chain(old_pair_counts.keys()).collect();
+            for k in keys {
+                // println!("Key: ({}, {}), Value: {} -> {}", id_to_word[k.0 as usize], id_to_word[k.1 as usize], old_pair_counts.get(k).unwrap_or(&0), pair_counts.get(k).unwrap_or(&0));
+                
+                // if the value of k in pair_counts is different from the value of k in old_pair_counts, add it to pair_counts_diff
+                if pair_counts.get(k).unwrap_or(&0) != old_pair_counts.get(k).unwrap_or(&0) {
+                    pair_counts_diff.insert(*k, *pair_counts.get(k).unwrap_or(&0));
                 }
             }
-            all_pair_counts.push(pair_counts_tmp);
+
+            old_pair_counts = pair_counts.clone();
+            old_pair_counts.retain(|_, &mut v| v != 0);
+            all_pair_counts.push(pair_counts_diff);
 
             if let Some(p) = &progress {
                 p.inc(1);
