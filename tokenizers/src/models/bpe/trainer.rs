@@ -538,7 +538,8 @@ impl BpeTrainer {
         let max_merges = 1000;
         for (left, right) in merge_order {
             // print the merge we are applying
-            println!("Applying merge: {} + {}", left, right);
+            // println!("-------");
+            // println!("Applying merge: {} + {}", left, right);
 
             if all_pair_counts.len() == max_merges {
                 break;
@@ -566,9 +567,9 @@ impl BpeTrainer {
             }
             
             let mut top: Merge = queue.remove(&override_pair).unwrap();
-            if top.count != pair_counts[&top.pair] as u64 {
-                top.count = pair_counts[&top.pair] as u64;
-                queue.insert(override_pair, top);
+            top.count = pair_counts[&top.pair] as u64;
+            if top.count < 1 || self.min_frequency > top.count {
+                all_pair_counts.push(HashMap::new());
                 continue;
             }
 
@@ -653,10 +654,23 @@ impl BpeTrainer {
                 }
             });
 
-            // Detect differences from old_pair_counts and add them to all_pair_counts
-            let mut pair_counts_diff: HashMap<Pair, i32> = HashMap::new();
-            pair_counts.remove(&top.pair);  // remove current merge from pair_counts (this isn't done automatically)
+            // print values of old_pair_counts
+            // println!("Elements of old_pair_counts");
+            // for (key, value) in &old_pair_counts {
+            //     println!("Key: ({}, {}), Value: {}", id_to_word[key.0 as usize], id_to_word[key.1 as usize], value);
+            // }
             
+            // print values of pair_counts
+            // println!("Elements of pair_counts");
+            // pair_counts.remove(&top.pair);  // remove current merge from pair_counts (this isn't done automatically)
+            // for (key, value) in &pair_counts {
+            //     println!("Key: ({}, {}), Value: {}", id_to_word[key.0 as usize], id_to_word[key.1 as usize], value);
+            // }
+
+            // Detect differences from old_pair_counts and create pair_counts_diffs
+            // println!("Check for differences");
+            pair_counts.remove(&top.pair);  // remove current merge from pair_counts (this isn't done automatically)
+            let mut pair_counts_diff: HashMap<Pair, i32> = HashMap::new();
             let keys: HashSet<&Pair> = pair_counts.keys().chain(old_pair_counts.keys()).collect();
             for k in keys {
                 // println!("Key: ({}, {}), Value: {} -> {}", id_to_word[k.0 as usize], id_to_word[k.1 as usize], old_pair_counts.get(k).unwrap_or(&0), pair_counts.get(k).unwrap_or(&0));
@@ -668,7 +682,7 @@ impl BpeTrainer {
             }
 
             old_pair_counts = pair_counts.clone();
-            old_pair_counts.retain(|_, &mut v| v != 0);
+            // old_pair_counts.retain(|_, &mut v| v != 0);
             all_pair_counts.push(pair_counts_diff);
 
             if let Some(p) = &progress {
