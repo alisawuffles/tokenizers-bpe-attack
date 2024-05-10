@@ -16,7 +16,7 @@ pub type Vocab = HashMap<String, u32>;
 type VocabR = HashMap<u32, String>;
 pub type MergeMap = HashMap<Pair, (u32, u32)>;
 pub type Merges = Vec<(String, String)>;
-use std::fs::OpenOptions;
+// use std::fs::OpenOptions;
 
 struct Config {
     files: Option<(String, String)>,
@@ -460,21 +460,22 @@ impl BPE {
         } else {
             let word = self.merge_word(sequence)?;
             // print word.merges
-            println!("{:?}", word.merges);
+            // println!("{:?}", word.merges);
             
             // append word.merges as a list of numbers to existing file
-            let mut file = OpenOptions::new()
-                .write(true)
-                .append(true)
-                .open("/gscratch/xlab/alisaliu/hack-tokenizers/used_merges/llama3_ordered_used_merges.txt")
-                .unwrap();
+            // let mut file = OpenOptions::new()
+            //     .write(true)
+            //     .append(true)
+            //     .open("/gscratch/xlab/alisaliu/hack-tokenizers/used_merges/llama3_ordered_used_merges.txt")
+            //     .unwrap();
+
             // write word.merges on one line
-            let mut merges = String::new();
-            for merge in word.merges.iter() {
-                merges.push_str(&format!("{:?} ", merge));
-            }
-            merges.push_str("\n");
-            file.write_all(merges.as_bytes()).unwrap();
+            // let mut merges = String::new();
+            // for merge in word.merges.iter() {
+            //     merges.push_str(&format!("{:?} ", merge));
+            // }
+            // merges.push_str("\n");
+            // file.write_all(merges.as_bytes()).unwrap();
 
             let ret = self.word_to_tokens(&word).collect();
             if let Some(ref cache) = self.cache {

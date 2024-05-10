@@ -1,6 +1,6 @@
 use super::Pair;
 use rand::{thread_rng, Rng};
-use regex_syntax::ast::print;
+// use regex_syntax::ast::print;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 
@@ -56,7 +56,7 @@ impl Symbol {
 #[derive(Clone, Default)]
 pub(super) struct Word {
     symbols: Vec<Symbol>,
-    pub merges: Vec<i64>
+    // pub merges: Vec<i64>
 }
 impl std::fmt::Debug for Word {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -79,14 +79,14 @@ impl Word {
     pub(super) fn new() -> Self {
         Word { 
             symbols: vec![],
-            merges: vec![]
+            // merges: vec![]
         }
     }
 
     pub(super) fn with_capacity(capacity: usize) -> Self {
         Self {
             symbols: Vec::with_capacity(capacity),
-            merges: Vec::with_capacity(capacity)
+            // merges: Vec::with_capacity(capacity)
         }
     }
 
@@ -196,8 +196,8 @@ impl Word {
             {
                 skip.push(top);
             } else {
-                println!("------");
-                println!("Pop merge: {}", top.rank);
+                // println!("------");
+                // println!("Pop merge: {}", top.rank);
 
                 // Re-insert the skipped elements
                 queue.extend(skip.drain(..));
@@ -223,8 +223,8 @@ impl Word {
                 }
                 
                 // at this point the merge is used, so we can push
-                println!("Apply the merge!");
-                self.merges.push(top.rank as i64);
+                // println!("Apply the merge!");
+                // self.merges.push(top.rank as i64);
 
                 // Otherwise, let's merge
                 self.symbols[top.pos].merge_with(&right, top.new_id);

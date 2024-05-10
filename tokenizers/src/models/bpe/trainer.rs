@@ -4,7 +4,7 @@ use super::{Pair, WithFirstLastIterator, Word, BPE};
 use crate::parallelism::*;
 use crate::tokenizer::{AddedToken, Result, Trainer};
 use crate::utils::progress::{ProgressBar, ProgressStyle};
-use regex_syntax::ast::print;
+// use regex_syntax::ast::print;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, HashSet};
@@ -531,7 +531,7 @@ impl BpeTrainer {
         }
 
         //
-        // 5. Do the first n merges
+        // 5. Do the first max_merges merges
         //
         let max_merges = 3000;
         self.update_progress(&progress, max_merges, "Compute merges");
