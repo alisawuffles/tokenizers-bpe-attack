@@ -377,7 +377,7 @@ impl BpeTrainer {
         words: &[Word],
         counts: &[u64],
         p: &Option<ProgressBar>,
-    ) -> (HashMap<Pair, i32>, HashMap<Pair, HashSet<usize>>) {
+    ) -> (HashMap<Pair, i64>, HashMap<Pair, HashSet<usize>>) {
         words
             .maybe_par_iter()
             .enumerate()
@@ -405,7 +405,7 @@ impl BpeTrainer {
                             h.insert(i);
                             h
                         });
-                    *pair_counts.get_mut(&cur_pair).unwrap() += count as i32;
+                    *pair_counts.get_mut(&cur_pair).unwrap() += count as i64;
                 }
 
                 if let Some(p) = &p {
@@ -514,8 +514,8 @@ impl BpeTrainer {
         self.finalize_progress(&progress, words.len());
 
         // Make a copy of pair_counts called initial_pair_counts
-        let mut old_pair_counts: HashMap<Pair, i32> = pair_counts.clone();
-        let mut all_pair_counts: Vec<HashMap<Pair, i32>> = Vec::new();
+        let mut old_pair_counts: HashMap<Pair, i64> = pair_counts.clone();
+        let mut all_pair_counts: Vec<HashMap<Pair, i64>> = Vec::new();
         all_pair_counts.push(pair_counts.clone());
 
         // Print 5 elements of pair_counts
@@ -533,9 +533,9 @@ impl BpeTrainer {
         //
         // 5. Do the first n merges
         //
-        self.update_progress(&progress, self.vocab_size, "Compute merges");
+        let max_merges = 3000;
+        self.update_progress(&progress, max_merges, "Compute merges");
         let mut merges: Vec<(Pair, u32)> = vec![];
-        let max_merges = 1000;
         for (left, right) in merge_order {
             // print the merge we are applying
             // println!("-------");
@@ -625,7 +625,7 @@ impl BpeTrainer {
 
             // Introduce new formed pairs
             for ((pair, change), iw) in changes {
-                let count = change * counts[iw] as i32;
+                let count = change * counts[iw] as i64;
                 pair_counts
                     .entry(pair)
                     .and_modify(|c| *c += count)
@@ -670,7 +670,7 @@ impl BpeTrainer {
             // Detect differences from old_pair_counts and create pair_counts_diffs
             // println!("Check for differences");
             pair_counts.remove(&top.pair);  // remove current merge from pair_counts (this isn't done automatically)
-            let mut pair_counts_diff: HashMap<Pair, i32> = HashMap::new();
+            let mut pair_counts_diff: HashMap<Pair, i64> = HashMap::new();
             let keys: HashSet<&Pair> = pair_counts.keys().chain(old_pair_counts.keys()).collect();
             for k in keys {
                 // println!("Key: ({}, {}), Value: {} -> {}", id_to_word[k.0 as usize], id_to_word[k.1 as usize], old_pair_counts.get(k).unwrap_or(&0), pair_counts.get(k).unwrap_or(&0));
@@ -887,7 +887,7 @@ impl BpeTrainer {
 
             // Introduce new formed pairs
             for ((pair, change), iw) in changes {
-                let count = change * counts[iw] as i32;
+                let count = change * counts[iw] as i64;
                 pair_counts
                     .entry(pair)
                     .and_modify(|c| *c += count)

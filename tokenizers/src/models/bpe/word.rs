@@ -56,7 +56,7 @@ impl Symbol {
 #[derive(Clone, Default)]
 pub(super) struct Word {
     symbols: Vec<Symbol>,
-    // pub merges: Vec<i32>
+    pub merges: Vec<i64>
 }
 impl std::fmt::Debug for Word {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -79,14 +79,14 @@ impl Word {
     pub(super) fn new() -> Self {
         Word { 
             symbols: vec![],
-            // merges: vec![]
+            merges: vec![]
         }
     }
 
     pub(super) fn with_capacity(capacity: usize) -> Self {
         Self {
             symbols: Vec::with_capacity(capacity),
-            // merges: Vec::with_capacity(capacity)
+            merges: Vec::with_capacity(capacity)
         }
     }
 
@@ -115,8 +115,8 @@ impl Word {
         c2: u32,
         replacement: u32,
         max_length: usize,
-    ) -> Vec<(Pair, i32)> {
-        let mut changes: Vec<(Pair, i32)> = vec![];
+    ) -> Vec<(Pair, i64)> {
+        let mut changes: Vec<(Pair, i64)> = vec![];
         let mut i = 0;
         loop {
             if i >= self.symbols.len() {
@@ -184,10 +184,10 @@ impl Word {
                 }),
         );
 
-        // println!("Initial elements of queue:");
-        // for elem in queue.iter() {
-        //     println!("{}", elem.rank);
-        // }
+        println!("Initial elements of queue:");
+        for elem in queue.iter() {
+            println!("{}", elem.rank);
+        }
 
         while let Some(top) = queue.pop() {
             if dropout
@@ -196,8 +196,8 @@ impl Word {
             {
                 skip.push(top);
             } else {
-                // println!("--- Time step {} ---", counter);
-                // println!("Pop merge: {}", top.rank);
+                println!("------");
+                println!("Pop merge: {}", top.rank);
 
                 // Re-insert the skipped elements
                 queue.extend(skip.drain(..));
@@ -221,8 +221,10 @@ impl Word {
                 {
                     continue;
                 }
-
-                // println!("Apply the merge!");
+                
+                // at this point the merge is used, so we can push
+                println!("Apply the merge!");
+                self.merges.push(top.rank as i64);
 
                 // Otherwise, let's merge
                 self.symbols[top.pos].merge_with(&right, top.new_id);
@@ -246,7 +248,7 @@ impl Word {
                             rank: *rank,
                             new_id: *new_id,
                         });
-                        println!("Merge added to queue: {}", rank);
+                        // println!("Merge added to queue: {}", rank);
                     }
                 }
 
@@ -261,7 +263,7 @@ impl Word {
                             rank: *rank,
                             new_id: *new_id,
                         });
-                        println!("Merge added to queue: {}", rank);
+                        // println!("Merge added to queue: {}", rank);
                     }
                 }
             }
@@ -330,10 +332,10 @@ mod tests {
         assert_eq!(
             changes,
             &[
-                ((1u32, 2u32), -1i32), // count for ('e', 'l') should be decreased by 1.
-                ((1u32, 4u32), 1i32),  // count for ('e', 'll') should be increased by 1.
-                ((2u32, 3u32), -1i32), // count for ('l', 'o') should be decreased by 1.
-                ((4u32, 3u32), 1i32),  // count for ('ll', 'o') should be increased by 1.
+                ((1u32, 2u32), -1i64), // count for ('e', 'l') should be decreased by 1.
+                ((1u32, 4u32), 1i64),  // count for ('e', 'll') should be increased by 1.
+                ((2u32, 3u32), -1i64), // count for ('l', 'o') should be decreased by 1.
+                ((4u32, 3u32), 1i64),  // count for ('ll', 'o') should be increased by 1.
             ]
         );
     }
@@ -365,10 +367,10 @@ mod tests {
         assert_eq!(
             changes,
             &[
-                ((1u32, 2u32), -1i32), // count for ('e', 'l') should be decreased by 1.
-                // ((1u32, 4u32), 1i32),  Missing since this would be larger than 2
-                ((2u32, 3u32), -1i32), // count for ('l', 'o') should be decreased by 1.
-                                       // ((4u32, 3u32), 1i32), Missing since this would be larger than 2
+                ((1u32, 2u32), -1i64), // count for ('e', 'l') should be decreased by 1.
+                // ((1u32, 4u32), 1i64),  Missing since this would be larger than 2
+                ((2u32, 3u32), -1i64), // count for ('l', 'o') should be decreased by 1.
+                                       // ((4u32, 3u32), 1i64), Missing since this would be larger than 2
             ]
         );
     }

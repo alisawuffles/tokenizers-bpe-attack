@@ -16,12 +16,13 @@ pub type Vocab = HashMap<String, u32>;
 type VocabR = HashMap<u32, String>;
 pub type MergeMap = HashMap<Pair, (u32, u32)>;
 pub type Merges = Vec<(String, String)>;
+use std::fs::OpenOptions;
 
 struct Config {
     files: Option<(String, String)>,
     vocab: Vocab,
     merges: Merges,
-    pair_counts: Vec<HashMap<(u32, u32), i32>>,
+    pair_counts: Vec<HashMap<(u32, u32), i64>>,
     cache_capacity: usize,
     dropout: Option<f32>,
     unk_token: Option<String>,
@@ -207,7 +208,7 @@ pub struct BPE {
     /// Contains the mapping between Pairs and their (rank, new_id).
     pub(crate) merges: MergeMap,
     // Contains the count of every pair
-    pub(crate) pair_counts: Vec<HashMap<(u32, u32), i32>>,
+    pub(crate) pair_counts: Vec<HashMap<(u32, u32), i64>>,
     /// Contains the cache for optimizing the encoding step.
     cache: Option<Cache<String, Word>>,
     /// Dropout probability for merges. 0 = no dropout is the default. At 1.0, tokenization will
@@ -459,17 +460,21 @@ impl BPE {
         } else {
             let word = self.merge_word(sequence)?;
             // print word.merges
-            // println!("word.merges: {:?}", word.merges);
+            println!("{:?}", word.merges);
             
             // append word.merges as a list of numbers to existing file
-            // let mut file = OpenOptions::new()
-            //     .write(true)
-            //     .append(true)
-            //     .open("/gscratch/xlab/alisaliu/hack-tokenizers/used_merges.txt")
-            //     .unwrap();
-            // for merge_rank in word.merges.iter() {
-            //     file.write_all(format!("{}\n", merge_rank).as_bytes()).unwrap();
-            // }
+            let mut file = OpenOptions::new()
+                .write(true)
+                .append(true)
+                .open("/gscratch/xlab/alisaliu/hack-tokenizers/used_merges/llama3_ordered_used_merges.txt")
+                .unwrap();
+            // write word.merges on one line
+            let mut merges = String::new();
+            for merge in word.merges.iter() {
+                merges.push_str(&format!("{:?} ", merge));
+            }
+            merges.push_str("\n");
+            file.write_all(merges.as_bytes()).unwrap();
 
             let ret = self.word_to_tokens(&word).collect();
             if let Some(ref cache) = self.cache {
@@ -567,12 +572,12 @@ impl Model for BPE {
             .iter()
             .collect();
         let mut pair_counts_file = File::create(&pair_counts_path)?;
-        // Transform pair_counts from HashMap<(u32, u32), i32> into HashMap<String, i32>
-        let mut all_pair_counts: Vec<HashMap<String, i32>> = Vec::new();
+        // Transform pair_counts from HashMap<(u32, u32), i64> into HashMap<String, i64>
+        let mut all_pair_counts: Vec<HashMap<String, i64>> = Vec::new();
         // Loop over self.pair_counts
 
         for pc in self.pair_counts.iter() {
-            let mut pair_counts: HashMap<String, i32> = HashMap::new();
+            let mut pair_counts: HashMap<String, i64> = HashMap::new();
             for (pair, count) in pc.iter() {
                 let pair_str = format!("{} {}", self.id_to_token(pair.0).unwrap(), self.id_to_token(pair.1).unwrap());
                 pair_counts.insert(pair_str, *count);
