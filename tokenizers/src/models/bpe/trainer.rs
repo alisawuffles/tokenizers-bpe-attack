@@ -4,10 +4,11 @@ use super::{Pair, WithFirstLastIterator, Word, BPE};
 use crate::parallelism::*;
 use crate::tokenizer::{AddedToken, Result, Trainer};
 use crate::utils::progress::{ProgressBar, ProgressStyle};
+use regex_syntax::ast::print;
 // use regex_syntax::ast::print;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
 use std::io::Read;
 
 #[derive(Debug, Eq)]
@@ -462,11 +463,13 @@ impl BpeTrainer {
         //
         // 1. Add all special tokens to the vocabulary (internally modifies word_to_id and id_to_word)
         //
+        println!("Step 1: Add special tokens");
         self.add_special_tokens(&mut word_to_id, &mut id_to_word);
 
         //
         // 2. Compute the initial alphabet (internally modifies word_to_id and id_to_word)
         //
+        println!("Step 2: Compute alphabet");
         self.compute_alphabet(word_counts, &mut word_to_id, &mut id_to_word);
         
         // Print the length of word_to_id
@@ -486,6 +489,7 @@ impl BpeTrainer {
         //
         // 3. Tokenize words: turn real words into tokens based on the initial alphabet
         //
+        println!("Step 3: Tokenize words");
         self.update_progress(&progress, word_counts.len(), "Tokenize words");
         let (words, counts) =
             self.tokenize_words(word_counts, &mut word_to_id, &mut id_to_word, &progress);
@@ -494,14 +498,18 @@ impl BpeTrainer {
         //
         // 4. Count pairs in words
         //
+        println!("Step 4: Count pairs in words");
         self.update_progress(&progress, words.len(), "Count pairs");
         let (mut pair_counts, mut where_to_update) = self.count_pairs(&words, &counts, &progress);
         // Insert them in the queue
         // let mut queue = BinaryHeap::with_capacity(pair_counts.len());
+        // let mut queue: BTreeMap<Pair, Merge> = BTreeMap::new();
         let mut queue: HashMap<Pair, Merge> = HashMap::new();
         where_to_update.drain().for_each(|(pair, pos)| {
             let count = pair_counts[&pair];
-            if count > 0 {
+            // add to queue only if pair is in merge_order
+            let pair_str = (id_to_word[pair.0 as usize].clone(), id_to_word[pair.1 as usize].clone());
+            if merge_order.contains(&pair_str) && count > 0 {
                 let merge = Merge {
                     pair,
                     count: count as u64,
@@ -510,8 +518,18 @@ impl BpeTrainer {
                 // add the merge to the queue
                 queue.insert(pair, merge);
             }
+            // if count > 0 {
+            //     let merge = Merge {
+            //         pair,
+            //         count: count as u64,
+            //         pos,
+            //     };
+            //     // add the merge to the queue
+            //     queue.insert(pair, merge);
+            // }
         });
         self.finalize_progress(&progress, words.len());
+        println!("Length of queue: {}", queue.len());
 
         // Make a copy of pair_counts called initial_pair_counts
         let mut old_pair_counts: HashMap<Pair, i64> = pair_counts.clone();
@@ -533,6 +551,7 @@ impl BpeTrainer {
         //
         // 5. Do the first max_merges merges
         //
+        println!("Step 5: Apply merges");
         let max_merges = 3000;
         self.update_progress(&progress, max_merges, "Compute merges");
         let mut merges: Vec<(Pair, u32)> = vec![];
@@ -545,12 +564,13 @@ impl BpeTrainer {
                 break;
             }
 
-            // Convert left and right into a Pair using word_to_id
+            // If left or right are not in word_to_id
             if !word_to_id.contains_key(&left) || !word_to_id.contains_key(&right) {
                 all_pair_counts.push(HashMap::new());
                 continue;
             }
 
+            // Convert left and right into a Pair using word_to_id
             let left_id = word_to_id.get(&left).unwrap();
             let right_id = word_to_id.get(&right).unwrap();
             let override_pair = (*left_id, *right_id);
@@ -568,11 +588,7 @@ impl BpeTrainer {
             
             let mut top: Merge = queue.remove(&override_pair).unwrap();
             top.count = pair_counts[&top.pair] as u64;
-            if top.count < 1 || self.min_frequency > top.count {
-                all_pair_counts.push(HashMap::new());
-                continue;
-            }
-
+            // If this merge does not exist in data at all
             if top.count < 1 || self.min_frequency > top.count {
                 all_pair_counts.push(HashMap::new());
                 continue;
@@ -604,7 +620,7 @@ impl BpeTrainer {
             }
             merges.push((top.pair, new_token_id));
 
-            // Merge the new pair in every words
+            // Merge the new pair in every word
             let changes = top
                 .pos
                 .maybe_par_iter()
@@ -654,19 +670,6 @@ impl BpeTrainer {
                 }
             });
 
-            // print values of old_pair_counts
-            // println!("Elements of old_pair_counts");
-            // for (key, value) in &old_pair_counts {
-            //     println!("Key: ({}, {}), Value: {}", id_to_word[key.0 as usize], id_to_word[key.1 as usize], value);
-            // }
-            
-            // print values of pair_counts
-            // println!("Elements of pair_counts");
-            // pair_counts.remove(&top.pair);  // remove current merge from pair_counts (this isn't done automatically)
-            // for (key, value) in &pair_counts {
-            //     println!("Key: ({}, {}), Value: {}", id_to_word[key.0 as usize], id_to_word[key.1 as usize], value);
-            // }
-
             // Detect differences from old_pair_counts and create pair_counts_diffs
             // println!("Check for differences");
             pair_counts.remove(&top.pair);  // remove current merge from pair_counts (this isn't done automatically)
@@ -695,16 +698,16 @@ impl BpeTrainer {
         assert!(all_pair_counts.len() <= max_merges, "all_pair_counts has {} elements", all_pair_counts.len());
 
         // Print 5 elements of pair_counts
-        println!("Size of pair_counts: {}", pair_counts.len());
-        println!("Printing 5 elements of pair_counts");
-        let mut count = 0;
-        for (key, value) in &pair_counts {
-            println!("Key: ({}, {}), Value: {}", id_to_word[key.0 as usize], id_to_word[key.1 as usize], value);
-            count += 1;
-            if count == 10 {
-                break;
-            }
-        }
+        // println!("Size of pair_counts: {}", pair_counts.len());
+        // println!("Printing 5 elements of pair_counts");
+        // let mut count = 0;
+        // for (key, value) in &pair_counts {
+        //     println!("Key: ({}, {}), Value: {}", id_to_word[key.0 as usize], id_to_word[key.1 as usize], value);
+        //     count += 1;
+        //     if count == 5 {
+        //         break;
+        //     }
+        // }
 
         // Transfer new vocab & options to model
         model.vocab = word_to_id;
@@ -766,11 +769,13 @@ impl BpeTrainer {
         //
         // 1. Add all special tokens to the vocabulary (internally modifies word_to_id and id_to_word)
         //
+        println!("Step 1: Add special tokens");
         self.add_special_tokens(&mut word_to_id, &mut id_to_word);
 
         //
         // 2. Compute the initial alphabet (internally modifies word_to_id and id_to_word)
         //
+        println!("Step 2: Compute alphabet");
         self.compute_alphabet(word_counts, &mut word_to_id, &mut id_to_word);
         
         // Print the length of word_to_id
@@ -790,6 +795,7 @@ impl BpeTrainer {
         //
         // 3. Tokenize words: turn real words into tokens based on the initial alphabet
         //
+        println!("Step 3: Tokenize words");
         self.update_progress(&progress, word_counts.len(), "Tokenize words");
         let (words, counts) =
             self.tokenize_words(word_counts, &mut word_to_id, &mut id_to_word, &progress);
@@ -798,6 +804,7 @@ impl BpeTrainer {
         //
         // 4. Count pairs in words
         //
+        println!("Step 4: Count pairs");
         self.update_progress(&progress, words.len(), "Count pairs");
         let (mut pair_counts, mut where_to_update) = self.count_pairs(&words, &counts, &progress);
         // Insert them in the queue
@@ -817,6 +824,7 @@ impl BpeTrainer {
         //
         // 5. Do merges
         //
+        println!("Step 5: Do merges");
         self.update_progress(&progress, self.vocab_size, "Compute merges");
         let mut merges: Vec<(Pair, u32)> = vec![];
         loop {

@@ -184,10 +184,10 @@ impl Word {
                 }),
         );
 
-        println!("Initial elements of queue:");
-        for elem in queue.iter() {
-            println!("{}", elem.rank);
-        }
+        // println!("Initial elements of queue:");
+        // for elem in queue.iter() {
+        //     println!("{}", elem.rank);
+        // }
 
         while let Some(top) = queue.pop() {
             if dropout
