@@ -274,6 +274,7 @@ impl BpeTrainer {
         let mut alphabet: HashMap<char, usize> = HashMap::new();
         for (word, count) in wc {
             for c in word.chars() {
+                // println!("{}", c);
                 alphabet
                     .entry(c)
                     .and_modify(|cnt| *cnt += *count as usize)
@@ -453,7 +454,7 @@ impl BpeTrainer {
         // Loop over the remaining lines
         for line in lines {
             // Line is left and right half separated by a space
-            let mut split = line.split_whitespace();
+            let mut split = line.split(" ");
             // Add the merge to merge_order
             merge_order.push((split.next().unwrap().to_string(), split.next().unwrap().to_string()));
         }
@@ -518,15 +519,6 @@ impl BpeTrainer {
                 // add the merge to the queue
                 queue.insert(pair, merge);
             }
-            // if count > 0 {
-            //     let merge = Merge {
-            //         pair,
-            //         count: count as u64,
-            //         pos,
-            //     };
-            //     // add the merge to the queue
-            //     queue.insert(pair, merge);
-            // }
         });
         self.finalize_progress(&progress, words.len());
         println!("Length of queue: {}", queue.len());
@@ -543,7 +535,7 @@ impl BpeTrainer {
         for (key, value) in &pair_counts {
             println!("Key: ({}, {}), Value: {}", id_to_word[key.0 as usize], id_to_word[key.1 as usize], value);
             count += 1;
-            if count == 10 {
+            if count == 5 {
                 break;
             }
         }
@@ -552,10 +544,13 @@ impl BpeTrainer {
         // 5. Do the first max_merges merges
         //
         println!("Step 5: Apply merges");
-        let max_merges = 3000;
+        let max_merges = 30000;
         self.update_progress(&progress, max_merges, "Compute merges");
         let mut merges: Vec<(Pair, u32)> = vec![];
-        for (left, right) in merge_order {
+        // print length of merge_order
+        println!("Length of merge_order: {}", merge_order.len());
+
+        for (left, right) in &merge_order {
             // print the merge we are applying
             // println!("-------");
             // println!("Applying merge: {} + {}", left, right);
@@ -564,18 +559,20 @@ impl BpeTrainer {
                 break;
             }
 
-            // If left or right are not in word_to_id
-            if !word_to_id.contains_key(&left) || !word_to_id.contains_key(&right) {
+            // If left or right are not in word_to_id (the current vocabulary)
+            // This can happen when the base vocabularies are different
+            if !word_to_id.contains_key(left) || !word_to_id.contains_key(right) {
                 all_pair_counts.push(HashMap::new());
                 continue;
             }
 
             // Convert left and right into a Pair using word_to_id
-            let left_id = word_to_id.get(&left).unwrap();
-            let right_id = word_to_id.get(&right).unwrap();
+            let left_id = word_to_id.get(left).unwrap();
+            let right_id = word_to_id.get(right).unwrap();
             let override_pair = (*left_id, *right_id);
 
             if queue.is_empty() {
+                println!("Queue is empty!");
                 break;
             }
             
@@ -661,7 +658,8 @@ impl BpeTrainer {
             }
             where_to_update.drain().for_each(|(pair, pos)| {
                 let count = pair_counts[&pair];
-                if count > 0 {
+                let pair_str = (id_to_word[pair.0 as usize].clone(), id_to_word[pair.1 as usize].clone());
+                if merge_order.contains(&pair_str) && count > 0 {
                     queue.insert(pair, Merge {
                         pair,
                         count: count as u64,
@@ -676,8 +674,6 @@ impl BpeTrainer {
             let mut pair_counts_diff: HashMap<Pair, i64> = HashMap::new();
             let keys: HashSet<&Pair> = pair_counts.keys().chain(old_pair_counts.keys()).collect();
             for k in keys {
-                // println!("Key: ({}, {}), Value: {} -> {}", id_to_word[k.0 as usize], id_to_word[k.1 as usize], old_pair_counts.get(k).unwrap_or(&0), pair_counts.get(k).unwrap_or(&0));
-                
                 // if the value of k in pair_counts is different from the value of k in old_pair_counts, add it to pair_counts_diff
                 if pair_counts.get(k).unwrap_or(&0) != old_pair_counts.get(k).unwrap_or(&0) {
                     pair_counts_diff.insert(*k, *pair_counts.get(k).unwrap_or(&0));
@@ -685,15 +681,19 @@ impl BpeTrainer {
             }
 
             old_pair_counts = pair_counts.clone();
-            // old_pair_counts.retain(|_, &mut v| v != 0);
             all_pair_counts.push(pair_counts_diff);
 
             if let Some(p) = &progress {
                 p.inc(1);
             }
         }
+        println!("Length of all_pair_counts: {}", all_pair_counts.len());
+
         self.finalize_progress(&progress, merges.len());
         
+        // print length of all_pair_counts
+        println!("Length of all_pair_counts: {}", all_pair_counts.len());
+
         // assert that all_pair_counts has no more than max_merges elements, otherwise print the values
         assert!(all_pair_counts.len() <= max_merges, "all_pair_counts has {} elements", all_pair_counts.len());
 

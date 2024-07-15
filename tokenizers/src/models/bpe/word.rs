@@ -169,7 +169,7 @@ impl Word {
         // println!("Inside merge_all() in tokenizers/src/models/bpe/word.rs");
         let mut queue = BinaryHeap::with_capacity(self.symbols.len());
         let mut skip = Vec::with_capacity(queue.len());
-
+        
         queue.extend(
             self.symbols
                 .windows(2)
@@ -183,6 +183,12 @@ impl Word {
                     })
                 }),
         );
+
+        // print self.symbols
+        // println!("Current symbols:");
+        // for s in self.symbols.iter() {
+        //     println!("{}: {}", s.c, s.len);
+        // }
 
         // println!("Initial elements of queue:");
         // for elem in queue.iter() {
