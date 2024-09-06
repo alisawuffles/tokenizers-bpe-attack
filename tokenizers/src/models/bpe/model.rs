@@ -566,8 +566,8 @@ impl Model for BPE {
         }
         
         let pair_counts_file_name = match name {
-            Some(name) => format!("{}-all_pair_counts_30k.json", name),
-            None => "all_pair_counts_30k.json".to_string(),
+            Some(name) => format!("{}-all_pair_counts.json", name),
+            None => "all_pair_counts.json".to_string(),
         };
         let pair_counts_path: PathBuf = [folder, Path::new(pair_counts_file_name.as_str())]
             .iter()

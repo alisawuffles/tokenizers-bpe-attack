@@ -4,11 +4,10 @@ use super::{Pair, WithFirstLastIterator, Word, BPE};
 use crate::parallelism::*;
 use crate::tokenizer::{AddedToken, Result, Trainer};
 use crate::utils::progress::{ProgressBar, ProgressStyle};
-use regex_syntax::ast::print;
 // use regex_syntax::ast::print;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::io::Read;
 
 #[derive(Debug, Eq)]
@@ -547,8 +546,6 @@ impl BpeTrainer {
         let max_merges = 30000;
         self.update_progress(&progress, max_merges, "Compute merges");
         let mut merges: Vec<(Pair, u32)> = vec![];
-        // print length of merge_order
-        println!("Length of merge_order: {}", merge_order.len());
 
         for (left, right) in &merge_order {
             // print the merge we are applying
@@ -572,7 +569,6 @@ impl BpeTrainer {
             let override_pair = (*left_id, *right_id);
 
             if queue.is_empty() {
-                println!("Queue is empty!");
                 break;
             }
             
@@ -687,12 +683,8 @@ impl BpeTrainer {
                 p.inc(1);
             }
         }
-        println!("Length of all_pair_counts: {}", all_pair_counts.len());
 
         self.finalize_progress(&progress, merges.len());
-        
-        // print length of all_pair_counts
-        println!("Length of all_pair_counts: {}", all_pair_counts.len());
 
         // assert that all_pair_counts has no more than max_merges elements, otherwise print the values
         assert!(all_pair_counts.len() <= max_merges, "all_pair_counts has {} elements", all_pair_counts.len());
